@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
   tailwind.config = {
     theme: {
@@ -22,20 +23,30 @@
           mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
         },
         colors: {
-          background: '#0a0a0a',
-          foreground: '#ededed',
-          card: '#111111',
-          border: '#222222',
-          accent: '#171717',
-          muted: '#1a1a1a',
-          'muted-foreground': '#888888',
+          background: 'var(--bg)',
+          foreground: 'var(--fg)',
+          card: 'var(--card)',
+          border: 'var(--border)',
+          accent: 'var(--accent)',
+          muted: 'var(--muted)',
+          'muted-foreground': 'var(--mfg)',
         },
       },
     },
   };
 </script>
 <style>
-  html, body { background:#0a0a0a; color:#ededed; }
+  :root[data-theme="dark"] {
+    --bg:#0a0a0a; --fg:#ededed; --card:#111111; --border:#222222;
+    --accent:#171717; --muted:#1a1a1a; --mfg:#888888;
+    --grid-empty:#161b22;
+  }
+  :root[data-theme="light"] {
+    --bg:#fafafa; --fg:#0a0a0a; --card:#ffffff; --border:#e5e5e5;
+    --accent:#f4f4f4; --muted:#ededed; --mfg:#666666;
+    --grid-empty:#ebedf0;
+  }
+  html, body { background:var(--bg); color:var(--fg); transition: background-color .2s, color .2s; }
   body { font-family: 'Inter', system-ui, sans-serif; }
   .font-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
   .noise-bg {
@@ -49,12 +60,77 @@
   .animate-ping { animation: ping 1.5s cubic-bezier(0,0,0.2,1) infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   .animate-spin { animation: spin 1s linear infinite; }
+  @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+  .skeleton {
+    background: linear-gradient(90deg, var(--muted) 0%, var(--accent) 50%, var(--muted) 100%);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s infinite linear;
+    border-radius: 6px;
+  }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-thumb { background: #222; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.75); backdrop-filter: blur(6px);
+    display: none; align-items: center; justify-content: center; z-index: 50; padding: 1rem;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal-panel {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    max-width: 900px; width: 100%; max-height: 90vh; overflow: auto;
+  }
+  /* PDF-safe overrides */
+  .pdf-mode .no-pdf { display: none !important; }
+  .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  .spin-icon { animation: spin 1s linear infinite; }
 </style>
 </head>
 <body class="min-h-screen noise-bg">
-<div class="mx-auto max-w-6xl px-6 py-16 md:py-24">
+
+<!-- Floating controls -->
+<div class="fixed top-4 right-4 z-40 flex items-center gap-2 no-pdf">
+  <span id="cache-badge" class="hidden rounded-md border border-border bg-card px-2.5 py-2 text-[10px] font-mono uppercase tracking-wider text-muted-foreground"></span>
+  <button id="token-btn" title="Set GitHub token" aria-label="Set optional GitHub token"
+    class="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-mono uppercase tracking-wider hover:bg-accent transition-colors">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-3.5 w-3.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <span id="token-label">Token</span>
+  </button>
+  <button id="refresh-btn" title="Refresh from GitHub" aria-label="Refresh data from GitHub"
+    class="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-mono uppercase tracking-wider hover:bg-accent transition-colors">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-3.5 w-3.5"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+  </button>
+  <button id="theme-toggle" title="Toggle theme"
+    class="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-mono uppercase tracking-wider hover:bg-accent transition-colors">
+    <span id="theme-icon">🌙</span>
+    <span id="theme-label">Dark</span>
+  </button>
+  <button id="pdf-btn" title="Download as PDF"
+    class="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-mono uppercase tracking-wider hover:bg-accent transition-colors">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-3.5 w-3.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <span>PDF</span>
+  </button>
+</div>
+
+<!-- Token modal -->
+<div id="token-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="token-title" aria-hidden="true">
+  <div class="modal-panel" style="max-width:480px" onclick="event.stopPropagation()">
+    <div class="p-6">
+      <h3 id="token-title" class="text-lg font-semibold tracking-tight">GitHub personal access token</h3>
+      <p class="mt-2 text-xs text-muted-foreground">Optional. A read-only token raises your API limit from 60 to 5,000 req/hour. Stored locally in your browser only — sent only to api.github.com.</p>
+      <label class="mt-4 block font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Token</label>
+      <input id="token-input" type="password" autocomplete="off" spellcheck="false" placeholder="ghp_… or github_pat_…"
+        class="mt-1 w-full h-10 rounded-md border border-border bg-background px-3 font-mono text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/30" />
+      <p class="mt-2 font-mono text-[10px] text-muted-foreground">Create at github.com/settings/tokens — no scopes needed for public data.</p>
+      <div class="mt-5 flex justify-end gap-2">
+        <button id="token-clear" class="inline-flex items-center rounded-md border border-border bg-card px-3 py-2 font-mono text-xs uppercase tracking-wider hover:bg-accent transition-colors">Clear</button>
+        <button id="token-cancel" class="inline-flex items-center rounded-md border border-border bg-card px-3 py-2 font-mono text-xs uppercase tracking-wider hover:bg-accent transition-colors">Cancel</button>
+        <button id="token-save" class="inline-flex items-center rounded-md bg-foreground px-3 py-2 font-mono text-xs uppercase tracking-wider text-background hover:opacity-90 transition-opacity">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="portfolio-root" class="mx-auto max-w-6xl px-6 py-16 md:py-24">
 
   <!-- HERO -->
   <header class="mb-16 md:mb-24">
@@ -93,11 +169,9 @@
            class="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent">
           <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4"><path d="M12 .5C5.73.5.75 5.48.75 11.75c0 4.97 3.22 9.18 7.69 10.67.56.1.77-.24.77-.54v-1.9c-3.13.68-3.79-1.5-3.79-1.5-.51-1.3-1.24-1.64-1.24-1.64-1.02-.7.08-.68.08-.68 1.13.08 1.72 1.16 1.72 1.16 1 1.72 2.63 1.22 3.27.94.1-.73.4-1.22.72-1.5-2.5-.28-5.13-1.25-5.13-5.56 0-1.23.44-2.24 1.15-3.02-.12-.28-.5-1.42.11-2.97 0 0 .94-.3 3.07 1.15a10.7 10.7 0 015.6 0c2.13-1.45 3.06-1.15 3.06-1.15.62 1.55.23 2.69.12 2.97.72.78 1.15 1.79 1.15 3.02 0 4.32-2.64 5.28-5.15 5.55.41.35.77 1.05.77 2.12v3.14c0 .3.2.65.78.54 4.47-1.49 7.68-5.7 7.68-10.67C23.25 5.48 18.27.5 12 .5z"/></svg>
           @SaddexRnx
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-3 w-3 opacity-60"><path d="M7 17L17 7M9 7h8v8"/></svg>
         </a>
         <a href="https://t.me/Saddex_x" target="_blank" rel="noreferrer"
-           class="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent"
-           style="border-color:#222" onmouseover="this.style.borderColor='rgba(57,211,83,0.4)'" onmouseout="this.style.borderColor='#222'">
+           class="inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           @Saddex_x
         </a>
@@ -135,12 +209,12 @@
     <div class="mb-4 overflow-hidden rounded-lg border border-border bg-card p-5">
       <div class="mb-3 flex items-center justify-between">
         <span class="font-mono text-xs">
-          <span style="color:#39d353">767</span>
+          <span id="contrib-total" style="color:#39d353">767</span>
           <span class="text-muted-foreground"> contributions in the last year</span>
         </span>
         <div class="hidden items-center gap-1.5 font-mono text-[10px] text-muted-foreground sm:flex">
           <span>Less</span>
-          <span class="h-2.5 w-2.5 rounded-sm" style="background:#161b22;box-shadow:inset 0 0 0 1px #222"></span>
+          <span class="h-2.5 w-2.5 rounded-sm" style="background:var(--grid-empty)"></span>
           <span class="h-2.5 w-2.5 rounded-sm" style="background:#0e4429"></span>
           <span class="h-2.5 w-2.5 rounded-sm" style="background:#006d32"></span>
           <span class="h-2.5 w-2.5 rounded-sm" style="background:#26a641"></span>
@@ -148,21 +222,33 @@
           <span>More</span>
         </div>
       </div>
-      <div class="overflow-x-auto">
-        <img src="https://ghchart.rshah.org/39d353/SaddexRnx" alt="SaddexRnx GitHub contributions in the last year"
-             class="min-w-[720px] w-full" loading="lazy" />
+      <div id="contrib-calendar" class="overflow-x-auto"></div>
+    </div>
+
+    <div class="mb-4 flex items-center justify-between gap-3">
+      <span class="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Sort by</span>
+      <div class="flex items-center gap-2">
+        <label for="commit-sort" class="sr-only">Sort commit list</label>
+        <select id="commit-sort"
+          class="h-8 rounded-md border border-border bg-card px-2 font-mono text-[11px] uppercase tracking-wider text-foreground focus:outline-none focus:ring-1 focus:ring-foreground/30">
+          <option value="desc">Newest · most active</option>
+          <option value="asc">Oldest · least active</option>
+        </select>
       </div>
     </div>
 
     <div id="commit-list" class="overflow-hidden rounded-lg border border-border bg-card"></div>
   </section>
 
+  <!-- Continue viewing chip -->
+  <div id="continue-viewing" class="mb-6 hidden no-pdf"></div>
+
   <!-- CONTROLS -->
-  <div class="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+  <div class="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between no-pdf">
     <div class="relative flex-1 md:max-w-sm">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
       <input id="search" type="text" placeholder="Search repositories, topics…"
-             class="w-full h-10 rounded-md border border-border bg-card pl-9 pr-3 font-mono text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-white/30" />
+             class="w-full h-10 rounded-md border border-border bg-card pl-9 pr-3 font-mono text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-foreground/30" />
     </div>
     <div class="flex flex-wrap items-center gap-2">
       <div id="sort-group" class="flex items-center gap-1 rounded-md border border-border bg-card p-1">
@@ -173,22 +259,88 @@
     </div>
   </div>
 
-  <div id="lang-filter" class="mb-10 flex flex-wrap gap-2"></div>
+  <div id="lang-filter" class="mb-10 flex flex-wrap gap-2 no-pdf"></div>
 
-  <div id="loading" class="flex items-center justify-center py-24 text-muted-foreground">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mr-2 h-4 w-4 animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-    Fetching repositories…
-  </div>
-  <div id="error" class="hidden rounded-md border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">
-    Couldn't load repositories from GitHub. This is often rate limiting — try again in a bit.
+  <!-- Skeleton loading -->
+  <div id="loading" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <!-- Injected by JS -->
   </div>
 
-  <div id="grid" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
+  <!-- Error state -->
+  <div id="error" class="hidden rounded-lg border border-red-500/40 bg-red-500/10 p-6 text-sm">
+    <div class="flex items-start gap-3">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mt-0.5 h-5 w-5 shrink-0 text-red-400"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div class="flex-1">
+        <div class="mb-1 font-medium text-red-200" id="error-title">Couldn't load repositories</div>
+        <p class="text-red-200/80" id="error-msg">GitHub API is being grumpy. This is often rate limiting (60 requests/hour per IP).</p>
+        <button id="retry-btn" class="mt-3 inline-flex items-center gap-2 rounded-md border border-red-400/40 bg-red-500/10 px-3 py-1.5 font-mono text-xs uppercase tracking-wider text-red-200 hover:bg-red-500/20 transition-colors">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-3 w-3"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Retry
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="grid" class="hidden grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"></div>
   <div id="empty" class="hidden py-24 text-center text-sm text-muted-foreground">No repositories match your filters.</div>
 
   <footer class="mt-24 border-t border-border pt-8 text-center font-mono text-xs text-muted-foreground">
     Data live from api.github.com · Built for @SaddexRnx
   </footer>
+</div>
+
+<!-- Modal -->
+<div id="modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-name" aria-describedby="modal-desc" aria-hidden="true">
+  <div class="modal-panel" tabindex="-1" onclick="event.stopPropagation()">
+    <div class="relative">
+      <img id="modal-cover" alt="" class="w-full border-b border-border object-cover" style="aspect-ratio:2/1;background:var(--muted)" />
+      <div class="absolute right-3 top-3 flex items-center gap-2">
+        <button id="modal-refresh" aria-label="Refresh this repository's data" title="Refresh this repo"
+          class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/80 hover:bg-accent backdrop-blur transition-colors">
+          <svg id="modal-refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+        <button id="modal-close" aria-label="Close" class="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-background/80 hover:bg-accent backdrop-blur transition-colors">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="p-6">
+      <div class="font-mono text-[10px] uppercase tracking-widest text-muted-foreground" id="modal-tag">repository</div>
+      <h3 class="mt-1 text-2xl font-semibold tracking-tight" id="modal-name">—</h3>
+      <p class="mt-2 text-sm text-muted-foreground" id="modal-desc">—</p>
+      <div id="modal-topics" class="mt-4 flex flex-wrap gap-1.5"></div>
+      <div class="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4">
+        <div class="bg-background px-4 py-3"><div class="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Stars</div><div class="mt-0.5 text-lg font-medium tabular-nums" id="modal-stars">0</div></div>
+        <div class="bg-background px-4 py-3"><div class="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Forks</div><div class="mt-0.5 text-lg font-medium tabular-nums" id="modal-forks">0</div></div>
+        <div class="bg-background px-4 py-3"><div class="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Watchers</div><div class="mt-0.5 text-lg font-medium tabular-nums" id="modal-watchers">0</div></div>
+        <div class="bg-background px-4 py-3"><div class="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Issues</div><div class="mt-0.5 text-lg font-medium tabular-nums" id="modal-issues">0</div></div>
+      </div>
+      <div class="mt-4 flex flex-wrap items-center justify-between gap-3 font-mono text-xs text-muted-foreground">
+        <div class="flex items-center gap-1.5" id="modal-lang"></div>
+        <div id="modal-updated">—</div>
+      </div>
+      <div class="mt-6 flex gap-2">
+        <a id="modal-link" href="#" target="_blank" rel="noreferrer"
+           class="inline-flex items-center gap-2 rounded-md border border-border bg-foreground px-4 py-2 text-sm font-medium text-background hover:opacity-90 transition-opacity">
+          Open on GitHub
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-3 w-3"><path d="M7 17L17 7M9 7h8v8"/></svg>
+        </a>
+        <a id="modal-homepage" href="#" target="_blank" rel="noreferrer"
+           class="hidden inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm hover:bg-accent transition-colors">
+          Live demo
+        </a>
+      </div>
+      <div class="mt-6">
+        <div class="mb-2 flex items-center justify-between">
+          <div class="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Recent commits</div>
+          <div id="modal-commits-meta" class="font-mono text-[10px] text-muted-foreground"></div>
+        </div>
+        <div id="modal-commits" class="overflow-hidden rounded-lg border border-border bg-background/40 text-sm text-muted-foreground">
+          <div class="px-4 py-6 text-center font-mono text-xs">Click refresh to load commits</div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -210,44 +362,384 @@ const timeAgo = iso => {
 };
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-const COMMITS = [
+/* ---------- GitHub token (optional) ---------- */
+const TOKEN_KEY = 'portfolio-gh-token';
+function getToken() { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } }
+function ghHeaders() {
+  const h = { Accept: 'application/vnd.github+json' };
+  const t = getToken();
+  if (t) h.Authorization = 'Bearer ' + t;
+  return h;
+}
+function updateTokenBadge() {
+  const label = document.getElementById('token-label');
+  const btn = document.getElementById('token-btn');
+  if (getToken()) {
+    label.textContent = 'Token ✓';
+    btn.style.borderColor = '#39d353';
+    btn.title = 'GitHub token active — 5,000 req/hour';
+  } else {
+    label.textContent = 'Token';
+    btn.style.borderColor = '';
+    btn.title = 'Set GitHub token (optional, higher rate limit)';
+  }
+}
+updateTokenBadge();
+document.getElementById('token-btn').addEventListener('click', () => {
+  const m = document.getElementById('token-modal');
+  document.getElementById('token-input').value = getToken();
+  m.classList.add('open'); m.setAttribute('aria-hidden','false');
+  setTimeout(() => document.getElementById('token-input').focus(), 20);
+});
+function closeTokenModal() {
+  const m = document.getElementById('token-modal');
+  m.classList.remove('open'); m.setAttribute('aria-hidden','true');
+}
+document.getElementById('token-modal').addEventListener('click', closeTokenModal);
+document.getElementById('token-cancel').addEventListener('click', closeTokenModal);
+document.getElementById('token-clear').addEventListener('click', () => {
+  try { localStorage.removeItem(TOKEN_KEY); } catch {}
+  document.getElementById('token-input').value = '';
+  updateTokenBadge();
+  closeTokenModal();
+});
+document.getElementById('token-save').addEventListener('click', () => {
+  const v = document.getElementById('token-input').value.trim();
+  try { v ? localStorage.setItem(TOKEN_KEY, v) : localStorage.removeItem(TOKEN_KEY); } catch {}
+  updateTokenBadge();
+  closeTokenModal();
+});
+
+/* ---------- Theme toggle ---------- */
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('theme-icon').textContent = t === 'dark' ? '🌙' : '☀️';
+  document.getElementById('theme-label').textContent = t === 'dark' ? 'Dark' : 'Light';
+}
+(function initTheme(){
+  const saved = localStorage.getItem('portfolio-theme');
+  const t = saved || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  applyTheme(t);
+})();
+document.getElementById('theme-toggle').onclick = () => {
+  const t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  localStorage.setItem('portfolio-theme', t);
+  applyTheme(t);
+};
+
+/* ---------- Commit list (virtualized + ARIA live) ---------- */
+const COMMITS_RAW = [
   {repo:'kchoupe',commits:259},{repo:'Plyrxio',commits:137},{repo:'play-fluent-ai',commits:119},
   {repo:'213-Playet---Your-AIO-AI-PLAYER',commits:47},{repo:'231player',commits:26},
   {repo:'creation-share-hub',commits:9},{repo:'SaddexRnx.github.io',commits:3},{repo:'213-AI-Player',commits:2},
 ];
-document.getElementById('commit-list').innerHTML = COMMITS.map(c => {
-  const pct = (c.commits/259)*100;
-  return `<a href="https://github.com/${USER}/${esc(c.repo)}" target="_blank" rel="noreferrer"
-    class="group relative flex items-center gap-4 border-b border-border px-5 py-3 last:border-b-0 transition-colors hover:bg-accent">
+let commitSortDir = (localStorage.getItem('portfolio-commit-sort') === 'asc') ? 'asc' : 'desc';
+let COMMITS = COMMITS_RAW.slice().sort((a,b) => commitSortDir==='asc' ? a.commits-b.commits : b.commits-a.commits);
+const COMMIT_MAX = Math.max(...COMMITS_RAW.map(c => c.commits));
+const ROW_H = 56;
+const OVERSCAN = 4;
+const VIEWPORT_H = 360;
+
+const commitList = document.getElementById('commit-list');
+commitList.innerHTML = `
+  <div id="commit-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <div id="commit-scroll" role="list" aria-label="Repository commit activity"
+       style="max-height:${VIEWPORT_H}px;overflow-y:auto;position:relative">
+    <div id="commit-spacer" style="position:relative;width:100%;"></div>
+  </div>
+  <div id="commit-status" class="border-t border-border px-5 py-2 text-center font-mono text-[10px] uppercase tracking-widest text-muted-foreground"></div>
+`;
+const commitScroll = document.getElementById('commit-scroll');
+const commitSpacer = document.getElementById('commit-spacer');
+const commitLive = document.getElementById('commit-live');
+const commitStatus = document.getElementById('commit-status');
+commitSpacer.style.height = (COMMITS.length * ROW_H) + 'px';
+
+let lastAnnouncedEnd = 0;
+let commitAnnounceTimer = null;
+
+function commitRowHTML(c, top) {
+  const pct = (c.commits / COMMIT_MAX) * 100;
+  return `<a href="https://github.com/${USER}/${esc(c.repo)}" target="_blank" rel="noreferrer" role="listitem"
+    style="position:absolute;top:${top}px;left:0;right:0;height:${ROW_H}px"
+    class="group flex items-center gap-4 border-b border-border px-5 transition-colors hover:bg-accent focus:outline-none focus-visible:bg-accent">
     <div class="min-w-0 flex-1"><div class="truncate font-mono text-sm"><span class="text-muted-foreground">${USER}/</span><span class="text-foreground">${esc(c.repo)}</span></div></div>
     <div class="hidden h-1.5 w-40 overflow-hidden rounded-full bg-background sm:block"><div class="h-full rounded-full" style="width:${pct}%;background:#39d353"></div></div>
     <div class="w-24 text-right font-mono text-xs text-muted-foreground"><span class="text-foreground">${c.commits}</span> commits</div>
   </a>`;
-}).join('');
+}
 
+function renderCommitWindow() {
+  const scrollTop = commitScroll.scrollTop;
+  const viewport = commitScroll.clientHeight || VIEWPORT_H;
+  const start = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN);
+  const end = Math.min(COMMITS.length, Math.ceil((scrollTop + viewport) / ROW_H) + OVERSCAN);
+  const rows = [];
+  for (let i = start; i < end; i++) rows.push(commitRowHTML(COMMITS[i], i * ROW_H));
+  commitSpacer.innerHTML = rows.join('');
+  commitStatus.textContent = `Showing ${end} of ${COMMITS.length} repositories`;
+
+  if (end !== lastAnnouncedEnd) {
+    clearTimeout(commitAnnounceTimer);
+    commitAnnounceTimer = setTimeout(() => {
+      if (end >= COMMITS.length) {
+        commitLive.textContent = `End of commit list reached. All ${COMMITS.length} repositories shown.`;
+      } else if (end > lastAnnouncedEnd) {
+        commitLive.textContent = `Loading more commits. Showing ${end} of ${COMMITS.length} repositories.`;
+      }
+      lastAnnouncedEnd = end;
+    }, 250);
+  }
+}
+let commitRAF = 0;
+commitScroll.addEventListener('scroll', () => {
+  if (commitRAF) return;
+  commitRAF = requestAnimationFrame(() => { commitRAF = 0; renderCommitWindow(); });
+}, { passive: true });
+renderCommitWindow();
+
+/* Commit sort dropdown */
+const commitSortEl = document.getElementById('commit-sort');
+commitSortEl.value = commitSortDir;
+commitSortEl.addEventListener('change', () => {
+  commitSortDir = commitSortEl.value === 'asc' ? 'asc' : 'desc';
+  try { localStorage.setItem('portfolio-commit-sort', commitSortDir); } catch {}
+  COMMITS = COMMITS_RAW.slice().sort((a,b) => commitSortDir==='asc' ? a.commits-b.commits : b.commits-a.commits);
+  commitScroll.scrollTop = 0;
+  lastAnnouncedEnd = 0;
+  renderCommitWindow();
+  commitLive.textContent = `Sorted ${commitSortDir==='asc'?'oldest':'newest'} first.`;
+});
+
+/* ---------- Skeletons ---------- */
+function renderSkeletons() {
+  const el = document.getElementById('loading');
+  el.innerHTML = Array.from({length:6}).map((_,i) => `
+    <div class="overflow-hidden rounded-xl border border-border bg-card ${i===0?'sm:col-span-2':''}">
+      ${i===0?'<div class="skeleton" style="aspect-ratio:2/1;border-radius:0"></div>':''}
+      <div class="p-6 space-y-3">
+        <div class="skeleton h-3 w-16"></div>
+        <div class="skeleton h-5 w-2/3"></div>
+        <div class="skeleton h-3 w-full"></div>
+        <div class="skeleton h-3 w-4/5"></div>
+        <div class="flex gap-2 pt-2">
+          <div class="skeleton h-4 w-14 rounded-full"></div>
+          <div class="skeleton h-4 w-20 rounded-full"></div>
+        </div>
+        <div class="skeleton h-3 w-1/2 mt-4"></div>
+      </div>
+    </div>
+  `).join('');
+}
+renderSkeletons();
+
+/* ---------- Data + client-side cache ---------- */
 let repos = [], user = null;
 let query = '', lang = 'All', sortBy = 'updated';
 
-async function loadAll() {
+/* Namespaced cache: keys scoped by USER, with per-repo entries.
+   Auto-invalidates on profile change: keys for other usernames are GC'd on load. */
+const CACHE_NS = 'portfolio-cache/v2';
+const CACHE_TTL = 30 * 60 * 1000; // fresh window
+const CACHE_MAX = 24 * 60 * 60 * 1000; // stale-but-usable window
+const REPO_TTL = 10 * 60 * 1000;
+const REPO_MAX = 24 * 60 * 60 * 1000;
+
+const kProfile = u => `${CACHE_NS}:${u}:profile`;
+const kRepos   = u => `${CACHE_NS}:${u}:repos`;
+const kRepo    = (u,n) => `${CACHE_NS}:${u}:repo:${n}`;
+const kCommits = (u,n) => `${CACHE_NS}:${u}:commits:${n}`;
+
+function gcOtherUsers(currentUser) {
   try {
-    const [u, r] = await Promise.all([
-      fetch(`https://api.github.com/users/${USER}`, {headers:{Accept:'application/vnd.github+json'}}).then(x => { if(!x.ok) throw 0; return x.json(); }),
-      fetch(`https://api.github.com/users/${USER}/repos?sort=updated&per_page=100`, {headers:{Accept:'application/vnd.github+json'}}).then(x => { if(!x.ok) throw 0; return x.json(); }),
-    ]);
-    user = u; repos = r;
-    document.getElementById('avatar').src = user.avatar_url;
-    document.getElementById('avatar').alt = user.login;
-    document.getElementById('name').textContent = user.name || user.login;
-    document.getElementById('since').textContent = 'On GitHub since ' + new Date(user.created_at).toLocaleDateString('en',{month:'short',year:'numeric'});
-    document.getElementById('stat-repos').textContent = user.public_repos;
-    document.getElementById('stat-followers').textContent = user.followers;
-    document.getElementById('stat-stars').textContent = repos.reduce((s,x)=>s+x.stargazers_count,0);
-    document.getElementById('loading').classList.add('hidden');
-    renderLangs();
-    render();
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      if (k.startsWith(CACHE_NS + ':') && !k.startsWith(`${CACHE_NS}:${currentUser}:`)) {
+        localStorage.removeItem(k);
+      }
+      // Drop legacy v1 keys from earlier build
+      if (k.startsWith('portfolio-cache:') && !k.startsWith(CACHE_NS)) localStorage.removeItem(k);
+    }
+  } catch {}
+}
+function readEntry(key, maxAge) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (!p || !p.at || !('data' in p)) return null;
+    const age = Date.now() - p.at;
+    if (age > maxAge) return null;
+    return { data: p.data, at: p.at, age };
+  } catch { return null; }
+}
+function writeEntry(key, data) {
+  try { localStorage.setItem(key, JSON.stringify({ at: Date.now(), data })); } catch {}
+}
+function clearRepoEntry(name) {
+  try { localStorage.removeItem(kRepo(USER, name)); localStorage.removeItem(kCommits(USER, name)); } catch {}
+}
+function readCache() {
+  const p = readEntry(kProfile(USER), CACHE_MAX);
+  const r = readEntry(kRepos(USER), CACHE_MAX);
+  if (!p || !r) return null;
+  const age = Math.max(p.age, r.age);
+  return { user: p.data, repos: r.data, age, fresh: age < CACHE_TTL };
+}
+function writeCache(user, repos) {
+  writeEntry(kProfile(USER), user);
+  writeEntry(kRepos(USER), repos);
+}
+async function renderContribCalendar() {
+  const host = document.getElementById('contrib-calendar');
+  if (!host || host.dataset.rendered === '1') return;
+  host.dataset.rendered = '1';
+  const LEVEL_COLORS = ['var(--grid-empty)', '#0e4429', '#006d32', '#26a641', '#39d353'];
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const CELL = 11, GAP = 3, STEP = CELL + GAP;
+
+  let days = null;
+  try {
+    const res = await fetch(`https://github-contributions-api.jogruber.de/v4/${USER}?y=last`);
+    if (res.ok) {
+      const data = await res.json();
+      days = data.contributions || null;
+      if (days && typeof data.total?.lastYear === 'number') {
+        const t = document.getElementById('contrib-total');
+        if (t) t.textContent = data.total.lastYear.toLocaleString();
+      }
+    }
+  } catch(_) {}
+
+  if (!days) {
+    // fallback: synthesize empty year so UI still looks native
+    days = [];
+    const end = new Date();
+    for (let i = 364; i >= 0; i--) {
+      const d = new Date(end); d.setDate(end.getDate() - i);
+      days.push({ date: d.toISOString().slice(0,10), count: 0, level: 0 });
+    }
+  }
+
+  // pad start so first column begins on Sunday
+  const first = new Date(days[0].date);
+  const pad = first.getDay();
+  const cells = new Array(pad).fill(null).concat(days);
+  const weeks = Math.ceil(cells.length / 7);
+  const width = weeks * STEP + 30;
+  const height = 7 * STEP + 20;
+
+  let svg = `<svg role="img" aria-label="GitHub contributions" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="min-width:${width}px">`;
+  // month labels
+  const monthLabels = [];
+  for (let w = 0; w < weeks; w++) {
+    const idx = w * 7 - pad;
+    if (idx < 0 || idx >= days.length) continue;
+    const d = new Date(days[idx].date);
+    if (d.getDate() <= 7) monthLabels.push({ w, m: d.getMonth() });
+  }
+  monthLabels.forEach(({w,m}) => {
+    svg += `<text x="${30 + w*STEP}" y="10" font-size="10" font-family="ui-monospace,monospace" fill="currentColor" opacity="0.6">${MONTHS[m]}</text>`;
+  });
+  ['Mon','Wed','Fri'].forEach((lbl, i) => {
+    const y = 20 + (i*2+1)*STEP + 9;
+    svg += `<text x="0" y="${y}" font-size="9" font-family="ui-monospace,monospace" fill="currentColor" opacity="0.5">${lbl}</text>`;
+  });
+  cells.forEach((c, i) => {
+    if (!c) return;
+    const w = Math.floor(i / 7), d = i % 7;
+    const x = 30 + w * STEP, y = 20 + d * STEP;
+    const lvl = c.level ?? 0;
+    const title = `${c.count} contribution${c.count===1?'':'s'} on ${c.date}`;
+    svg += `<rect x="${x}" y="${y}" width="${CELL}" height="${CELL}" rx="2" ry="2" fill="${LEVEL_COLORS[lvl]}"><title>${title}</title></rect>`;
+  });
+  svg += `</svg>`;
+  host.innerHTML = svg;
+}
+
+function hydrate(u, r, fromCache) {
+  user = u; repos = r;
+  document.getElementById('avatar').src = user.avatar_url;
+  document.getElementById('avatar').alt = user.login;
+  document.getElementById('name').textContent = user.name || user.login;
+  document.getElementById('since').textContent = 'On GitHub since ' + new Date(user.created_at).toLocaleDateString('en',{month:'short',year:'numeric'});
+  document.getElementById('stat-repos').textContent = user.public_repos;
+  document.getElementById('stat-followers').textContent = user.followers;
+  document.getElementById('stat-stars').textContent = repos.reduce((s,x)=>s+x.stargazers_count,0);
+  document.getElementById('loading').classList.add('hidden');
+  document.getElementById('error').classList.add('hidden');
+  const grid = document.getElementById('grid');
+  grid.classList.remove('hidden');
+  grid.classList.add('grid');
+  renderLangs();
+  render();
+  updateContinueChip();
+  renderContribCalendar();
+  const badge = document.getElementById('cache-badge');
+  if (badge) {
+    if (fromCache) {
+      const mins = Math.max(1, Math.round(fromCache.age / 60000));
+      badge.textContent = `Cached · ${mins}m ago`;
+      badge.classList.remove('hidden');
+    } else {
+      badge.textContent = 'Live';
+      badge.classList.remove('hidden');
+      setTimeout(() => badge.classList.add('hidden'), 2000);
+    }
+  }
+}
+
+async function fetchFromGitHub() {
+  const h = { headers: ghHeaders() };
+  const [uRes, rRes] = await Promise.all([
+    fetch(`https://api.github.com/users/${USER}`, h),
+    fetch(`https://api.github.com/users/${USER}/repos?sort=updated&per_page=100`, h),
+  ]);
+  if (!uRes.ok || !rRes.ok) {
+    const worst = !uRes.ok ? uRes : rRes;
+    const remaining = worst.headers.get('x-ratelimit-remaining');
+    const reset = worst.headers.get('x-ratelimit-reset');
+    if (worst.status === 403 && remaining === '0') {
+      const mins = reset ? Math.max(1, Math.ceil((Number(reset)*1000 - Date.now())/60000)) : null;
+      const limit = getToken() ? '5,000' : '60';
+      const hint = getToken() ? '' : ' Add a GitHub token (button top-right) to raise the limit to 5,000/hour.';
+      throw { title: 'GitHub rate limit hit', msg: `You've reached the ${limit} requests/hour limit${mins?`. Try again in ~${mins} min.`:'.'}${hint}` };
+    }
+    if (worst.status === 404) throw { title:'User not found', msg:`GitHub returned 404 for @${USER}.` };
+    throw { title:`GitHub API error (${worst.status})`, msg: worst.statusText || 'Unexpected response.' };
+  }
+  return { u: await uRes.json(), r: await rRes.json() };
+}
+
+async function loadAll() {
+  gcOtherUsers(USER);
+  const cached = readCache();
+  if (cached) {
+    hydrate(cached.user, cached.repos, cached);
+    if (cached.fresh) return; // skip network — cache still fresh
+  } else {
+    document.getElementById('error').classList.add('hidden');
+    document.getElementById('grid').classList.add('hidden');
+    document.getElementById('loading').classList.remove('hidden');
+    renderSkeletons();
+  }
+  try {
+    const { u, r } = await fetchFromGitHub();
+    writeCache(u, r);
+    hydrate(u, r, null);
   } catch(e) {
+    if (cached) return; // keep showing stale cache; silently drop network error
     document.getElementById('loading').classList.add('hidden');
-    document.getElementById('error').classList.remove('hidden');
+    const err = document.getElementById('error');
+    err.classList.remove('hidden');
+    if (e && e.title) {
+      document.getElementById('error-title').textContent = e.title;
+      document.getElementById('error-msg').textContent = e.msg;
+    } else {
+      document.getElementById('error-title').textContent = 'Network error';
+      document.getElementById('error-msg').textContent = 'Check your connection and try again.';
+    }
   }
 }
 
@@ -292,9 +784,9 @@ function render() {
            onerror="this.parentElement.style.display='none'"/></div>` : '';
     const langBit = r.language ? `<span class="h-2 w-2 rounded-full" style="background:${langColor(r.language)}"></span><span>${esc(r.language)}</span>` : '';
     const tag = r.fork ? 'fork' : (r.archived ? 'archived' : 'repository');
-    return `<a href="${esc(r.html_url)}" target="_blank" rel="noreferrer"
-      class="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all duration-300 hover:-translate-y-0.5 hover:bg-accent ${featured?'sm:col-span-2':''}"
-      onmouseover="this.style.borderColor='rgba(57,211,83,0.4)'" onmouseout="this.style.borderColor='#222'">
+    return `<div data-repo-id="${r.id}" role="button" tabindex="0"
+      aria-label="View details for ${esc(r.name)}"
+      class="repo-card group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all duration-300 hover:-translate-y-0.5 hover:bg-accent cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-foreground/40 ${featured?'sm:col-span-2':''}">
       ${cover}
       <div class="flex flex-1 flex-col p-6">
         <div class="mb-3 flex items-start justify-between gap-3">
@@ -317,10 +809,259 @@ function render() {
           </div>
         </div>
       </div>
-    </a>`;
+    </div>`;
   }).join('');
+
+  grid.querySelectorAll('.repo-card').forEach(el => {
+    el.addEventListener('click', () => openModal(Number(el.dataset.repoId)));
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModal(Number(el.dataset.repoId)); }
+    });
+  });
 }
 
+/* ---------- Modal ---------- */
+let modalRepoId = null;
+
+function paintModal(r, commitsEntry) {
+  document.getElementById('modal-cover').src = `https://opengraph.githubassets.com/1/${USER}/${r.name}`;
+  document.getElementById('modal-cover').onerror = function(){ this.style.display='none'; };
+  document.getElementById('modal-cover').style.display = '';
+  document.getElementById('modal-tag').textContent = r.fork ? 'fork' : (r.archived ? 'archived' : 'repository');
+  document.getElementById('modal-name').textContent = r.name;
+  document.getElementById('modal-desc').textContent = r.description || 'No description';
+  document.getElementById('modal-topics').innerHTML = (r.topics||[]).map(t =>
+    `<span class="inline-flex items-center rounded-md border border-border bg-background/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">${esc(t)}</span>`
+  ).join('');
+  document.getElementById('modal-stars').textContent = r.stargazers_count;
+  document.getElementById('modal-forks').textContent = r.forks_count;
+  document.getElementById('modal-watchers').textContent = r.watchers_count;
+  document.getElementById('modal-issues').textContent = r.open_issues_count;
+  document.getElementById('modal-lang').innerHTML = r.language
+    ? `<span class="h-2 w-2 rounded-full" style="background:${langColor(r.language)}"></span><span>${esc(r.language)}</span>` : '';
+  document.getElementById('modal-updated').textContent = 'Updated ' + timeAgo(r.updated_at);
+  document.getElementById('modal-link').href = r.html_url;
+  const hp = document.getElementById('modal-homepage');
+  if (r.homepage) { hp.href = r.homepage; hp.classList.remove('hidden'); hp.classList.add('inline-flex'); }
+  else { hp.classList.add('hidden'); hp.classList.remove('inline-flex'); }
+  paintModalCommits(commitsEntry);
+}
+
+function paintModalCommits(entry) {
+  const box = document.getElementById('modal-commits');
+  const meta = document.getElementById('modal-commits-meta');
+  if (!entry) {
+    box.innerHTML = `<div class="px-4 py-6 text-center font-mono text-xs">Click refresh to load commits</div>`;
+    meta.textContent = '';
+    return;
+  }
+  const list = entry.data;
+  if (!list || !list.length) {
+    box.innerHTML = `<div class="px-4 py-6 text-center font-mono text-xs">No commits found</div>`;
+  } else {
+    box.innerHTML = list.slice(0, 5).map(c => {
+      const sha = (c.sha||'').slice(0,7);
+      const msg = (c.commit?.message || '').split('\n')[0];
+      const when = c.commit?.author?.date ? timeAgo(c.commit.author.date) : '';
+      const url = c.html_url || '#';
+      return `<a href="${url}" target="_blank" rel="noreferrer"
+        class="flex items-center gap-3 border-b border-border px-4 py-2 last:border-b-0 hover:bg-accent transition-colors">
+        <span class="font-mono text-[10px] text-muted-foreground">${esc(sha)}</span>
+        <span class="min-w-0 flex-1 truncate text-foreground text-xs">${esc(msg)}</span>
+        <span class="font-mono text-[10px] text-muted-foreground shrink-0">${esc(when)}</span>
+      </a>`;
+    }).join('');
+  }
+  const mins = Math.max(1, Math.round(entry.age / 60000));
+  meta.textContent = `Cached · ${mins}m ago`;
+}
+
+const LAST_REPO_KEY = () => `${CACHE_NS}:${USER}:lastRepo`;
+
+function renderCommitSkeleton() {
+  const box = document.getElementById('modal-commits');
+  box.innerHTML = Array.from({length:5}).map(() => `
+    <div class="flex items-center gap-3 border-b border-border px-4 py-2 last:border-b-0">
+      <div class="skeleton h-3 w-12"></div>
+      <div class="skeleton h-3 flex-1"></div>
+      <div class="skeleton h-3 w-14"></div>
+    </div>`).join('');
+  document.getElementById('modal-commits-meta').textContent = 'Refreshing…';
+}
+
+function renderCommitError(msg) {
+  const box = document.getElementById('modal-commits');
+  box.innerHTML = `
+    <div class="flex flex-col items-start gap-2 border-l-2 border-red-500/60 bg-red-500/10 px-4 py-3 text-xs">
+      <div class="text-red-200">Couldn't refresh this repository. <span class="text-red-200/70">${esc(msg||'network error')}</span></div>
+      <button id="modal-retry-btn" class="inline-flex items-center gap-1.5 rounded-md border border-red-400/40 bg-red-500/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-red-200 hover:bg-red-500/20 transition-colors">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-3 w-3"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Retry
+      </button>
+    </div>`;
+  document.getElementById('modal-commits-meta').textContent = 'Refresh failed';
+  document.getElementById('modal-retry-btn').addEventListener('click', () => refreshModalRepo());
+}
+
+function openModal(id) {
+  const r = repos.find(x => x.id === id);
+  if (!r) return;
+  modalRepoId = id;
+  try { localStorage.setItem(LAST_REPO_KEY(), String(id)); } catch {}
+  updateContinueChip();
+  const cachedCommits = readEntry(kCommits(USER, r.name), REPO_MAX);
+  paintModal(r, cachedCommits);
+  const m = document.getElementById('modal');
+  modalPrevFocus = document.activeElement;
+  m.classList.add('open');
+  m.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => document.getElementById('modal-close').focus());
+  const cachedRepo = readEntry(kRepo(USER, r.name), REPO_TTL);
+  if (!cachedRepo || !cachedCommits) refreshModalRepo({ silent: !!cachedCommits });
+}
+
+async function refreshModalRepo({ silent = false } = {}) {
+  if (modalRepoId == null) return;
+  const r = repos.find(x => x.id === modalRepoId);
+  if (!r) return;
+  const btn = document.getElementById('modal-refresh');
+  const icon = document.getElementById('modal-refresh-icon');
+  btn.disabled = true; icon.classList.add('spin-icon');
+  if (!silent) renderCommitSkeleton();
+  try {
+    const h = { headers: ghHeaders() };
+    const [rRes, cRes] = await Promise.all([
+      fetch(`https://api.github.com/repos/${USER}/${r.name}`, h),
+      fetch(`https://api.github.com/repos/${USER}/${r.name}/commits?per_page=5`, h),
+    ]);
+    if (!rRes.ok && !cRes.ok) {
+      const worst = !rRes.ok ? rRes : cRes;
+      const remaining = worst.headers.get('x-ratelimit-remaining');
+      let msg = `HTTP ${worst.status}`;
+      if (worst.status === 403 && remaining === '0') {
+        msg = getToken() ? 'Rate limit hit (5,000/hr).' : 'Rate limit hit (60/hr) — add a token top-right.';
+      } else if (worst.status === 404) msg = 'Repository not found (may be renamed).';
+      throw new Error(msg);
+    }
+    if (rRes.ok) {
+      const fresh = await rRes.json();
+      writeEntry(kRepo(USER, r.name), fresh);
+      const idx = repos.findIndex(x => x.id === modalRepoId);
+      if (idx !== -1) { repos[idx] = { ...repos[idx], ...fresh }; writeEntry(kRepos(USER), repos); }
+    }
+    let commitsEntry = readEntry(kCommits(USER, r.name), REPO_MAX);
+    if (cRes.ok) {
+      const commits = await cRes.json();
+      writeEntry(kCommits(USER, r.name), commits);
+      commitsEntry = { data: commits, at: Date.now(), age: 0 };
+    }
+    const updated = repos.find(x => x.id === modalRepoId) || r;
+    paintModal(updated, commitsEntry);
+    render();
+  } catch (e) {
+    renderCommitError(e?.message || 'network error');
+  } finally {
+    btn.disabled = false; icon.classList.remove('spin-icon');
+  }
+}
+document.getElementById('modal-refresh').addEventListener('click', e => { e.stopPropagation(); refreshModalRepo(); });
+
+/* Continue viewing chip */
+function updateContinueChip() {
+  const el = document.getElementById('continue-viewing');
+  if (!el) return;
+  let id = null;
+  try { id = Number(localStorage.getItem(LAST_REPO_KEY())) || null; } catch {}
+  const r = id ? repos.find(x => x.id === id) : null;
+  if (!r) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <div class="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-2.5">
+      <div class="flex min-w-0 items-center gap-3">
+        <span class="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Continue viewing</span>
+        <span class="truncate font-mono text-sm text-foreground">${esc(r.name)}</span>
+      </div>
+      <div class="flex items-center gap-1">
+        <button id="continue-open" class="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider hover:bg-accent transition-colors">Reopen</button>
+        <button id="continue-clear" aria-label="Forget last opened repository" class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background hover:bg-accent transition-colors">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-3 w-3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>`;
+  document.getElementById('continue-open').addEventListener('click', () => openModal(r.id));
+  document.getElementById('continue-clear').addEventListener('click', () => {
+    try { localStorage.removeItem(LAST_REPO_KEY()); } catch {}
+    updateContinueChip();
+  });
+}
+let modalPrevFocus = null;
+const FOCUSABLE_SEL = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+function getModalFocusables() {
+  return Array.from(document.querySelector('#modal .modal-panel').querySelectorAll(FOCUSABLE_SEL))
+    .filter(el => !el.hasAttribute('disabled') && el.offsetParent !== null);
+}
+function closeModal() {
+  const m = document.getElementById('modal');
+  if (!m.classList.contains('open')) return;
+  m.classList.remove('open');
+  m.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+  if (modalPrevFocus && typeof modalPrevFocus.focus === 'function') modalPrevFocus.focus();
+  modalPrevFocus = null;
+}
+document.getElementById('modal').addEventListener('click', closeModal);
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('token-modal').classList.contains('open')) {
+    e.preventDefault(); closeTokenModal(); return;
+  }
+  const m = document.getElementById('modal');
+  if (!m.classList.contains('open')) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeModal(); return; }
+  if (e.key === 'Tab') {
+    const f = getModalFocusables();
+    if (f.length === 0) { e.preventDefault(); return; }
+    const first = f[0], last = f[f.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey && (active === first || !m.contains(active))) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (active === last || !m.contains(active))) { e.preventDefault(); first.focus(); }
+  }
+});
+
+/* ---------- PDF export ---------- */
+document.getElementById('pdf-btn').addEventListener('click', async () => {
+  const btn = document.getElementById('pdf-btn');
+  btn.disabled = true;
+  const original = btn.innerHTML;
+  btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-3.5 w-3.5 animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>Rendering…</span>';
+  const prevTheme = document.documentElement.getAttribute('data-theme');
+  // Force light for readable PDF
+  applyTheme('light');
+  document.body.classList.add('pdf-mode');
+  const el = document.getElementById('portfolio-root');
+  await new Promise(r => setTimeout(r, 200));
+  try {
+    await html2pdf().set({
+      margin: [10,10,10,10],
+      filename: `${USER}-portfolio.pdf`,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'] },
+    }).from(el).save();
+  } catch(err) {
+    console.error(err);
+    alert('PDF export failed. Try again.');
+  } finally {
+    document.body.classList.remove('pdf-mode');
+    applyTheme(prevTheme);
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+});
+
+/* ---------- Wire controls ---------- */
 document.getElementById('search').addEventListener('input', e => { query = e.target.value; render(); });
 document.querySelectorAll('.sort-btn').forEach(b => b.onclick = () => {
   sortBy = b.dataset.sort;
@@ -329,6 +1070,16 @@ document.querySelectorAll('.sort-btn').forEach(b => b.onclick = () => {
     else x.className = 'sort-btn rounded px-3 py-1 font-mono text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground';
   });
   render();
+});
+document.getElementById('retry-btn').addEventListener('click', loadAll);
+document.getElementById('refresh-btn').addEventListener('click', () => {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(`${CACHE_NS}:${USER}:`)) localStorage.removeItem(k);
+    }
+  } catch {}
+  loadAll();
 });
 
 loadAll();
