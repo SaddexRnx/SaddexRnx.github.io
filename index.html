@@ -1,12 +1,442 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta http-equiv="refresh" content="0; url=https://95kcwkmk0qaq.space.minimax.io" />
-    <script>
-      window.location.href = "https://95kcwkmk0qaq.space.minimax.io";
-    </script>
-  </head>
-  <body>
-    <p>Redirecting...</p>
-  </body>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SaddexRnx · GitHub Portfolio</title>
+  <!-- Font Awesome for icons (optional, but nice) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+  <style>
+    /* ----- RESET & BASE (Dark Monochrome) ----- */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0d0d0d;
+      color: #e0e0e0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      padding: 2rem 1.5rem;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    /* ----- HERO ----- */
+    .hero {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      margin-bottom: 3rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid #2a2a2a;
+    }
+
+    .hero-avatar {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      border: 2px solid #3a3a3a;
+      background: #1a1a1a;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .hero-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .hero-info h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+
+    .hero-info .bio {
+      color: #aaa;
+      font-size: 1.1rem;
+      margin-top: 0.25rem;
+    }
+
+    .hero-info .stats {
+      margin-top: 0.75rem;
+      display: flex;
+      gap: 1.5rem;
+      font-size: 0.9rem;
+      color: #888;
+    }
+
+    .hero-info .stats span i {
+      margin-right: 0.3rem;
+    }
+
+    /* ----- FILTERS ----- */
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      align-items: center;
+    }
+
+    .filters input,
+    .filters select {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #e0e0e0;
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    .filters input:focus,
+    .filters select:focus {
+      border-color: #666;
+    }
+
+    .filters input {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .filters select {
+      min-width: 140px;
+      cursor: pointer;
+    }
+
+    .filters .clear-btn {
+      background: transparent;
+      border: 1px solid #444;
+      color: #aaa;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: 0.2s;
+    }
+
+    .filters .clear-btn:hover {
+      border-color: #888;
+      color: #fff;
+    }
+
+    /* ----- REPO GRID (Masonry / Bento) ----- */
+    .repo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    /* Card */
+    .repo-card {
+      background: #161616;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 1.25rem;
+      transition: transform 0.15s ease, border-color 0.15s, box-shadow 0.15s;
+      display: flex;
+      flex-direction: column;
+      height: fit-content;
+    }
+
+    .repo-card:hover {
+      border-color: #555;
+      transform: translateY(-3px);
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+    }
+
+    .repo-card .repo-name {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 0.3rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .repo-card .repo-name a {
+      color: inherit;
+    }
+    .repo-card .repo-name a:hover {
+      text-decoration: underline;
+    }
+
+    .repo-card .repo-description {
+      color: #aaa;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+      line-height: 1.5;
+      flex: 1;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .repo-card .repo-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1rem;
+      font-size: 0.8rem;
+      color: #888;
+      margin-bottom: 0.75rem;
+    }
+
+    .repo-card .repo-meta span {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+
+    .repo-card .language-color {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: gray;
+      margin-right: 4px;
+    }
+
+    .repo-card .topics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.25rem;
+    }
+
+    .repo-card .topic-chip {
+      background: #2a2a2a;
+      color: #bbb;
+      padding: 0.2rem 0.7rem;
+      border-radius: 20px;
+      font-size: 0.7rem;
+      letter-spacing: 0.02em;
+      border: 1px solid #333;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      color: #666;
+      padding: 4rem 0;
+      font-size: 1.2rem;
+      grid-column: 1 / -1;
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      body { padding: 1rem; }
+      .hero { flex-direction: column; align-items: flex-start; gap: 1rem; }
+      .hero-avatar { width: 80px; height: 80px; }
+      .hero-info h1 { font-size: 2rem; }
+      .filters input, .filters select { width: 100%; }
+      .repo-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HERO -->
+  <section class="hero" id="hero">
+    <div class="hero-avatar">
+      <img id="avatar" src="" alt="avatar" />
+    </div>
+    <div class="hero-info">
+      <h1 id="name">SaddexRnx</h1>
+      <div class="bio" id="bio">Loading bio...</div>
+      <div class="stats">
+        <span id="repo-count"><i class="fas fa-book"></i> 0 repos</span>
+        <span id="follower-count"><i class="fas fa-users"></i> 0 followers</span>
+        <span id="following-count"><i class="fas fa-user-plus"></i> 0 following</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- FILTERS -->
+  <div class="filters">
+    <input type="text" id="searchInput" placeholder="🔍 Search repos..." />
+    <select id="languageFilter">
+      <option value="">All languages</option>
+    </select>
+    <button class="clear-btn" id="clearFilters">Clear filters</button>
+  </div>
+
+  <!-- REPO GRID -->
+  <div class="repo-grid" id="repoGrid">
+    <!-- Cards will be injected here -->
+  </div>
+
+  <script>
+    (async () => {
+      const USERNAME = 'SaddexRnx';
+      const API_BASE = 'https://api.github.com';
+
+      // DOM refs
+      const heroAvatar = document.getElementById('avatar');
+      const heroName = document.getElementById('name');
+      const heroBio = document.getElementById('bio');
+      const repoCountEl = document.getElementById('repo-count');
+      const followerCountEl = document.getElementById('follower-count');
+      const followingCountEl = document.getElementById('following-count');
+      const repoGrid = document.getElementById('repoGrid');
+      const searchInput = document.getElementById('searchInput');
+      const languageFilter = document.getElementById('languageFilter');
+      const clearBtn = document.getElementById('clearFilters');
+
+      // State
+      let allRepos = [];
+      let filteredRepos = [];
+
+      // Helpers
+      function timeAgo(dateStr) {
+        const diff = Date.now() - new Date(dateStr).getTime();
+        const mins = Math.floor(diff / 60000);
+        if (mins < 1) return 'just now';
+        if (mins < 60) return `${mins}m ago`;
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return `${hrs}h ago`;
+        const days = Math.floor(hrs / 24);
+        if (days < 30) return `${days}d ago`;
+        const months = Math.floor(days / 30);
+        if (months < 12) return `${months}mo ago`;
+        return `${Math.floor(months / 12)}y ago`;
+      }
+
+      function renderCards(repos) {
+        if (!repos.length) {
+          repoGrid.innerHTML = `<div class="empty-state">No repositories match your filters.</div>`;
+          return;
+        }
+
+        repoGrid.innerHTML = repos.map(repo => {
+          const langColor = repo.language ? (window.languageColors?.[repo.language] || '#888') : '#888';
+          return `
+            <div class="repo-card">
+              <div class="repo-name">
+                <a href="${repo.html_url}" target="_blank" rel="noopener">${repo.name}</a>
+              </div>
+              ${repo.description ? `<div class="repo-description">${repo.description}</div>` : ''}
+              <div class="repo-meta">
+                ${repo.language ? `<span><span class="language-color" style="background:${langColor};"></span>${repo.language}</span>` : ''}
+                ${repo.stargazers_count > 0 ? `<span><i class="fas fa-star"></i> ${repo.stargazers_count}</span>` : ''}
+                ${repo.forks_count > 0 ? `<span><i class="fas fa-code-branch"></i> ${repo.forks_count}</span>` : ''}
+                <span><i class="far fa-clock"></i> ${timeAgo(repo.updated_at)}</span>
+              </div>
+              ${repo.topics?.length ? `<div class="topics">${repo.topics.map(t => `<span class="topic-chip">${t}</span>`).join('')}</div>` : ''}
+            </div>
+          `;
+        }).join('');
+      }
+
+      function applyFilters() {
+        const query = searchInput.value.toLowerCase().trim();
+        const lang = languageFilter.value;
+
+        filteredRepos = allRepos.filter(repo => {
+          const nameMatch = repo.name.toLowerCase().includes(query);
+          const descMatch = repo.description?.toLowerCase().includes(query) || false;
+          const langMatch = lang === '' || repo.language === lang;
+          return (nameMatch || descMatch) && langMatch;
+        });
+
+        renderCards(filteredRepos);
+      }
+
+      // Fetch user data
+      async function fetchUser() {
+        const res = await fetch(`${API_BASE}/users/${USERNAME}`);
+        if (!res.ok) throw new Error('Failed to fetch user');
+        return res.json();
+      }
+
+      // Fetch repos
+      async function fetchRepos() {
+        const res = await fetch(`${API_BASE}/users/${USERNAME}/repos?sort=updated&per_page=100`);
+        if (!res.ok) throw new Error('Failed to fetch repos');
+        return res.json();
+      }
+
+      // Populate language dropdown
+      function populateLanguages(repos) {
+        const langs = new Set(repos.map(r => r.language).filter(Boolean));
+        const sorted = [...langs].sort();
+        languageFilter.innerHTML = `<option value="">All languages</option>` +
+          sorted.map(l => `<option value="${l}">${l}</option>`).join('');
+      }
+
+      // Init
+      try {
+        // Fetch both in parallel
+        const [userData, reposData] = await Promise.all([fetchUser(), fetchRepos()]);
+
+        // Populate hero
+        heroAvatar.src = userData.avatar_url || '';
+        heroName.textContent = userData.name || userData.login;
+        heroBio.textContent = userData.bio || 'No bio available';
+        repoCountEl.textContent = `${userData.public_repos} repos`;
+        followerCountEl.textContent = `${userData.followers} followers`;
+        followingCountEl.textContent = `${userData.following} following`;
+
+        // Store repos
+        allRepos = reposData;
+        populateLanguages(allRepos);
+        applyFilters(); // initial render
+
+        // Event listeners for filters
+        searchInput.addEventListener('input', applyFilters);
+        languageFilter.addEventListener('change', applyFilters);
+        clearBtn.addEventListener('click', () => {
+          searchInput.value = '';
+          languageFilter.value = '';
+          applyFilters();
+        });
+
+      } catch (err) {
+        console.error(err);
+        repoGrid.innerHTML = `<div class="empty-state">⚠️ Failed to load repositories. Please refresh.</div>`;
+        heroBio.textContent = 'Error loading profile.';
+      }
+    })();
+  </script>
+
+  <!-- (Optional) Language color map – you can extend this -->
+  <script>
+    // A small built-in map for common languages; feel free to expand.
+    window.languageColors = {
+      JavaScript: '#f1e05a',
+      TypeScript: '#3178c6',
+      Python: '#3572A5',
+      HTML: '#e34c26',
+      CSS: '#563d7c',
+      Java: '#b07219',
+      C: '#555555',
+      'C++': '#f34b7d',
+      'C#': '#178600',
+      Go: '#00ADD8',
+      Rust: '#dea584',
+      PHP: '#4F5D95',
+      Ruby: '#701516',
+      Swift: '#ffac45',
+      Kotlin: '#A97BFF',
+      Dart: '#00B4AB',
+      Shell: '#89e051',
+      Vue: '#41b883',
+      React: '#61dafb', // not a language but for demo
+    };
+  </script>
+</body>
 </html>
