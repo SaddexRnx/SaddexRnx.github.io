@@ -1,5 +1,7 @@
-# Saddek Renane Portfolio
+# saddexrnx.github.io
 
-The live portfolio for [Saddek Renane](https://github.com/SaddexRnx), featuring selected AI products, browser tools, and developer infrastructure.
+My portfolio. Live at [saddexrnx.github.io](https://saddexrnx.github.io).
 
-The production site is deployed through GitHub Pages at [saddexrnx.github.io](https://saddexrnx.github.io/).
+Plain HTML and CSS, no framework, no build step. The site lists my projects with links to the live demos and source code.
+
+If something is broken, [open an issue](https://github.com/SaddexRnx/SaddexRnx.github.io/issues/new).
